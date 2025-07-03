@@ -1,7 +1,27 @@
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
-import { BarChart3, Briefcase, FileText, MessageSquare, TrendingUp, Calendar, Star, MapPin, AlertCircle } from 'lucide-react'
+import { BarChart3, Briefcase, FileText, MessageSquare, TrendingUp, Calendar, Star, MapPin, AlertCircle, Bell, CheckCircle, XCircle, Clock, Eye } from 'lucide-react'
+
+interface Notification {
+  id: string
+  type: string
+  title: string
+  message: string
+  read: boolean
+  created_at: string
+  related_application_id: string
+}
+
+interface InterviewDetail {
+  id: string
+  interview_date: string
+  interview_time: string
+  location: string
+  dress_code: string
+  items_to_bring: string
+  additional_instructions: string
+}
 
 export default function Dashboard() {
   const { user, userType } = useAuth()
@@ -15,10 +35,13 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null)
   const [recentActivity, setRecentActivity] = useState<any[]>([])
   const [recommendedJobs, setRecommendedJobs] = useState<any[]>([])
+  const [notifications, setNotifications] = useState<Notification[]>([])
+  const [interviewDetails, setInterviewDetails] = useState<{[key: string]: InterviewDetail}>({})
 
   useEffect(() => {
     if (user) {
       loadDashboardData()
+      loadNotifications()
     }
   }, [user])
 
@@ -44,6 +67,21 @@ export default function Dashboard() {
 
       if (appsError && appsError.code !== 'PGRST116') {
         throw appsError
+      }
+
+      // Load interview details for accepted applications
+      const interviewApplications = applications?.filter(app => app.status === 'interview') || []
+      if (interviewApplications.length > 0) {
+        const { data: interviews } = await supabase
+          .from('interview_details')
+          .select('*')
+          .in('application_id', interviewApplications.map(app => app.id))
+
+        const interviewMap: {[key: string]: InterviewDetail} = {}
+        interviews?.forEach(interview => {
+          interviewMap[interview.application_id] = interview
+        })
+        setInterviewDetails(interviewMap)
       }
 
       // Load recommended jobs
@@ -84,6 +122,69 @@ export default function Dashboard() {
       setError(error.message || 'Failed to load dashboard data.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadNotifications = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: false })
+        .limit(10)
+
+      if (error) throw error
+      setNotifications(data || [])
+    } catch (error) {
+      console.error('Error loading notifications:', error)
+    }
+  }
+
+  const markNotificationAsRead = async (notificationId: string) => {
+    try {
+      await supabase
+        .from('notifications')
+        .update({ read: true })
+        .eq('id', notificationId)
+      
+      setNotifications(prev => 
+        prev.map(notif => 
+          notif.id === notificationId ? { ...notif, read: true } : notif
+        )
+      )
+    } catch (error) {
+      console.error('Error marking notification as read:', error)
+    }
+  }
+
+  const getNotificationIcon = (type: string) => {
+    switch (type) {
+      case 'application_accepted':
+        return CheckCircle
+      case 'application_rejected':
+        return XCircle
+      case 'interview_scheduled':
+        return Calendar
+      case 'application_reviewed':
+        return Eye
+      default:
+        return Bell
+    }
+  }
+
+  const getNotificationColor = (type: string) => {
+    switch (type) {
+      case 'application_accepted':
+        return 'text-green-600 bg-green-100 dark:bg-green-900/20'
+      case 'application_rejected':
+        return 'text-red-600 bg-red-100 dark:bg-red-900/20'
+      case 'interview_scheduled':
+        return 'text-purple-600 bg-purple-100 dark:bg-purple-900/20'
+      case 'application_reviewed':
+        return 'text-blue-600 bg-blue-100 dark:bg-blue-900/20'
+      default:
+        return 'text-gray-600 bg-gray-100 dark:bg-gray-900/20'
     }
   }
 
@@ -204,6 +305,84 @@ export default function Dashboard() {
             Here's what's happening with your job search today.
           </p>
         </div>
+
+        {/* Notifications Section */}
+        {notifications.length > 0 && (
+          <div className="mb-8 bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-100 dark:border-gray-700">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+              <Bell className="w-5 h-5 mr-2 text-sky-500" />
+              Recent Notifications
+            </h2>
+            <div className="space-y-3">
+              {notifications.slice(0, 3).map((notification) => {
+                const Icon = getNotificationIcon(notification.type)
+                return (
+                  <div
+                    key={notification.id}
+                    className={`p-4 rounded-lg border cursor-pointer transition-colors ${
+                      notification.read 
+                        ? 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700' 
+                        : 'border-sky-200 dark:border-sky-700 bg-sky-50 dark:bg-sky-900/20'
+                    }`}
+                    onClick={() => markNotificationAsRead(notification.id)}
+                  >
+                    <div className="flex items-start space-x-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${getNotificationColor(notification.type)}`}>
+                        <Icon className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-medium text-gray-900 dark:text-white">
+                          {notification.title}
+                        </h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                          {notification.message}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                          {new Date(notification.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                      {!notification.read && (
+                        <div className="w-2 h-2 bg-sky-500 rounded-full"></div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Interview Details Section */}
+        {Object.keys(interviewDetails).length > 0 && (
+          <div className="mb-8 bg-gradient-to-r from-purple-500 to-blue-600 rounded-xl shadow-md p-6 text-white">
+            <h2 className="text-xl font-semibold mb-4 flex items-center">
+              <Calendar className="w-5 h-5 mr-2" />
+              Upcoming Interviews
+            </h2>
+            <div className="space-y-4">
+              {Object.entries(interviewDetails).map(([applicationId, details]) => (
+                <div key={applicationId} className="bg-white/20 backdrop-blur-sm rounded-lg p-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <h3 className="font-semibold mb-2">Interview Details</h3>
+                      <p><strong>Date:</strong> {new Date(details.interview_date).toLocaleDateString()}</p>
+                      <p><strong>Time:</strong> {details.interview_time}</p>
+                      <p><strong>Location:</strong> {details.location}</p>
+                    </div>
+                    <div>
+                      <h3 className="font-semibold mb-2">Preparation</h3>
+                      {details.dress_code && <p><strong>Dress Code:</strong> {details.dress_code}</p>}
+                      {details.items_to_bring && <p><strong>Bring:</strong> {details.items_to_bring}</p>}
+                      {details.additional_instructions && (
+                        <p className="mt-2"><strong>Instructions:</strong> {details.additional_instructions}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

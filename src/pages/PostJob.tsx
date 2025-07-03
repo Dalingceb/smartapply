@@ -1,10 +1,10 @@
 import React, { useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
-import { Building2, MapPin, DollarSign, FileText, Save, Eye } from 'lucide-react'
+import { Building2, MapPin, DollarSign, FileText, Save, Eye, CheckCircle } from 'lucide-react'
 
 export default function PostJob() {
-  const { user } = useAuth()
+  const { user, userType } = useAuth()
   const [jobData, setJobData] = useState({
     title: '',
     company: '',
@@ -17,6 +17,7 @@ export default function PostJob() {
   })
   const [saving, setSaving] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
+  const [success, setSuccess] = useState(false)
 
   const handleInputChange = (field: string, value: string) => {
     setJobData(prev => ({ ...prev, [field]: value }))
@@ -36,30 +37,23 @@ export default function PostJob() {
 
       if (error) throw error
 
-      alert('Job posted successfully!')
-      setJobData({
-        title: '',
-        company: '',
-        location: '',
-        salary: '',
-        description: '',
-        requirements: '',
-        jobType: 'full-time',
-        experience: 'mid-level'
-      })
+      setSuccess(true)
+      setTimeout(() => {
+        setJobData({
+          title: '',
+          company: '',
+          location: '',
+          salary: '',
+          description: '',
+          requirements: '',
+          jobType: 'full-time',
+          experience: 'mid-level'
+        })
+        setSuccess(false)
+      }, 3000)
     } catch (error) {
       console.error('Error posting job:', error)
-      alert('Job posted successfully! (Demo mode)')
-      setJobData({
-        title: '',
-        company: '',
-        location: '',
-        salary: '',
-        description: '',
-        requirements: '',
-        jobType: 'full-time',
-        experience: 'mid-level'
-      })
+      alert('Failed to post job. Please try again.')
     } finally {
       setSaving(false)
     }
@@ -71,6 +65,45 @@ export default function PostJob() {
         <div className="text-center">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Please sign in</h2>
           <p className="text-gray-600 dark:text-gray-300">You need to be signed in to post a job.</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (userType !== 'employer') {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Access Denied</h2>
+          <p className="text-gray-600 dark:text-gray-300">Only employers can post jobs. Please contact support if you need to change your account type.</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (success) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-24 h-24 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
+            <CheckCircle className="w-12 h-12 text-green-500" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Job Posted Successfully!</h2>
+          <p className="text-gray-600 dark:text-gray-300 mb-4">Your job listing is now live and candidates can start applying.</p>
+          <div className="flex space-x-4 justify-center">
+            <button
+              onClick={() => window.location.href = '/employer-dashboard'}
+              className="bg-sky-500 text-white px-6 py-2 rounded-lg hover:bg-sky-600 transition-colors"
+            >
+              View Dashboard
+            </button>
+            <button
+              onClick={() => window.location.reload()}
+              className="border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 px-6 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >
+              Post Another Job
+            </button>
+          </div>
         </div>
       </div>
     )
@@ -139,11 +172,17 @@ export default function PostJob() {
                       <option value="Mbabane, Eswatini">Mbabane, Eswatini</option>
                       <option value="Manzini, Eswatini">Manzini, Eswatini</option>
                       <option value="Lobamba, Eswatini">Lobamba, Eswatini</option>
+                      <option value="Big Bend, Eswatini">Big Bend, Eswatini</option>
+                      <option value="Nhlangano, Eswatini">Nhlangano, Eswatini</option>
                       <option value="Maseru, Lesotho">Maseru, Lesotho</option>
                       <option value="Teyateyaneng, Lesotho">Teyateyaneng, Lesotho</option>
+                      <option value="Mafeteng, Lesotho">Mafeteng, Lesotho</option>
+                      <option value="Hlotse, Lesotho">Hlotse, Lesotho</option>
                       <option value="Gaborone, Botswana">Gaborone, Botswana</option>
                       <option value="Francistown, Botswana">Francistown, Botswana</option>
                       <option value="Maun, Botswana">Maun, Botswana</option>
+                      <option value="Kasane, Botswana">Kasane, Botswana</option>
+                      <option value="Serowe, Botswana">Serowe, Botswana</option>
                       <option value="Remote">Remote</option>
                     </select>
                   </div>
@@ -158,7 +197,7 @@ export default function PostJob() {
                       value={jobData.salary}
                       onChange={(e) => handleInputChange('salary', e.target.value)}
                       className="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent dark:bg-gray-900 dark:text-white"
-                      placeholder="e.g., E15,000 - E25,000"
+                      placeholder="e.g., E15,000 - E25,000 / M18,000 - M28,000 / P35,000 - P50,000"
                     />
                   </div>
                 </div>
@@ -177,6 +216,7 @@ export default function PostJob() {
                       <option value="part-time">Part Time</option>
                       <option value="contract">Contract</option>
                       <option value="internship">Internship</option>
+                      <option value="temporary">Temporary</option>
                     </select>
                   </div>
 
